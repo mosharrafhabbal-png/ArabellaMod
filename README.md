@@ -1,260 +1,152 @@
-# ArabellaMod
+# 艾拉贝拉 · ArabellaMod
 
-语言 / Languages：中文 | [English](README.en.md)
+中文 | [English](README.en.md)
 
-一个可复制、可构建的 RitsuLib Mod 模板，提供通用的 Godot/C# 工程结构、示例内容和静态占位资源。
+> 从卡厄思来到尖塔的神秘而又迷人的女人。
 
-**模板包含：**
+**艾拉贝拉**是《Slay the Spire 2》的自定义角色 Mod，基于 RitsuLib 开发。她是佣兵团「黑角宿一」的团长，以蛇鞭、裂创与不断回流的卡牌展开战斗。
 
-- 一个 `[ModInitializer]` 入口，外加最小自定义角色（含角色卡池、遗物池、药水池）。
-- 4 张初始打击、4 张初始防御和 1 个初始遗物示例。
-- 最小 Godot 静态占位场景：战斗模型、能量表盘、角色选择背景、商店和火堆。
-- 从原版资源复制并按模板命名的占位 PNG，复制模板后可直接替换。
-- 中英文基础本地化文件。
-- 完整的 Godot 项目、导出配置、Mod manifest 和 MSBuild 构建脚本。
+玩法围绕**消耗、回收与连续触发**展开：让卡牌进入消耗牌堆，触发放纵效果；通过掌控将它们收回手中，再触发感应。在这个循环中积累欲火、提升兴奋，为后续连招提供资源。
 
-## 学习资源
+## 项目内容
 
-- [STS2-RitsuLib](https://github.com/BAKAOLC/STS2-RitsuLib)：Slay the Spire 2 Mod 的共享框架库，本模板基于它提供内容注册、角色脚手架和 Godot 资源接入能力。
-- [RitsuLib 文档地址](https://github.com/GlitchedReme/SlayTheSpire2ModdingTutorials/tree/master/RitsuLib)：按文件阅读教程和示例。
-- [Slay the Spire 2 Modding Tutorials 网页版](https://glitchedreme.github.io/SlayTheSpire2ModdingTutorials/index.html)：完整教程站点。
-- 模板 Wiki（以 Rider 为主线）：[中文首页](https://github.com/alkaid616/ArabellaMod/wiki/Home) | [English Home](https://github.com/alkaid616/ArabellaMod/wiki/Home-EN)。
+- 艾拉贝拉角色、专属卡池、初始遗物及其升级形态。
+- 掌控、放纵、感应三类卡牌机制，以及欲火、兴奋两种战斗资源。
+- 裂创持续伤害、衍生牌与围绕消耗回收展开的卡牌组合。
+- 角色序列帧动画、背身动画、卡牌与战斗特效、人物语音和音效。
+- 欲火计数器、兴奋进度显示、掌控进度及卡牌高亮反馈。
+- 简体中文和英文本地化，以及主菜单和暂停菜单中的 Mod 设置页。
 
-## 安装与使用
+当前 Mod 版本为 `0.1.0`，仍在开发和调整中。部分辅助文案与资源配置仍保留模板内容，具体效果以当前代码和游戏内表现为准。
 
-这个项目可以通过两种方式获得：使用 NuGet 模板自动生成，或者手动复制目录。
+## 角色与初始配置
 
-### 方式 A：使用 NuGet 模板（推荐）
+| 项目 | 内容 |
+| --- | --- |
+| 角色 | 艾拉贝拉 / Arabella |
+| 初始生命 | 75 |
+| 初始金币 | 99 |
+| 初始牌组 | 4 张斜切打击、4 张猩红领域、1 张纵情一瞬、1 张初次驯服、1 张蛇蝎天性 |
+| 初始遗物 | 猩红蛇鞭 |
+| 作者 | Kalipei |
 
-```powershell
-# 安装模板
-dotnet new install STS2.RitsuLib.ModTemplate
+**猩红蛇鞭**：每当打出并结算一张能力牌后，可以选择至多 1 张其他手牌将其消耗，为放纵与掌控循环创造起点。
 
-# 创建新 Mod
-dotnet new ritsulibmod -n MyMod
+## 核心机制
 
-# 卸载模板
-dotnet new uninstall STS2.RitsuLib.ModTemplate
+| 机制 | 效果 |
+| --- | --- |
+| **掌控 X** | 此牌在消耗牌堆中时，独立累计打出其他卡牌实际花费的能量与欲火。达到 X 点后回到手牌，本回合费用降低 1 点，最低为 0。自身打出费用不计入进度，每次重新进入消耗牌堆时进度归零。 |
+| **放纵** | 此牌被消耗后，触发牌面注明的额外效果。 |
+| **感应** | 此牌通过任意方式进入手牌时触发，包括战斗开始时的初始抽牌。 |
+| **裂创** | 敌方回合结束时，造成等同于层数的无视格挡伤害，随后层数减半并向下取整；其他能力可以进一步改变其收益。 |
+
+### 欲火
+
+欲火是艾拉贝拉的额外战斗资源，初始上限为 **9 点**。每当卡牌从消耗牌堆中移出时获得 1 点，也可以通过卡牌和能力效果获得或消耗。
+
+每场战斗一次，拥有欲火时受到致命伤害，会消耗全部欲火并避免死亡，每实际消耗 1 点恢复 3 点生命。每次触发后，本局游戏的欲火上限永久降低 1 点，最低为 0；降低后的上限跨战斗和读档保留，新开一局恢复为 9 点。
+
+### 兴奋
+
+兴奋上限为 **10 点**。每实际消耗 1 点欲火，或每次触发放纵，获得 1 点兴奋；每次受到未被格挡的伤害后失去 2 点。
+
+| 阈值 | 状态 | 收益 |
+| --- | --- | --- |
+| 3 点 | 躁动 | 每次触发感应，获得 2 点格挡。 |
+| 6 点 | 沉迷 | 每次因掌控回手，该牌费用额外降低 1 点，最低为 0；此减费可跨回合叠加。兴奋低于 6 点时清除全部沉迷减费，重新达到阈值后从零累计。 |
+| 10 点 | 亢奋 | 进入时抽 2 张牌；打牌时每缺少 1 点能量，可以额外支付 1 点欲火代替。 |
+
+## 安装与运行
+
+运行 Mod 需要游戏、RitsuLib，以及构建后的艾拉贝拉文件。当前仓库中的 [Mod 清单](ArabellaMod.json) 声明最低游戏版本为 `0.110.0`，RitsuLib 依赖版本为 `0.5.20`。这些是本项目的配置值，其他版本的兼容性需要实际验证。
+
+将构建产物放入游戏安装目录，目录结构如下：
+
+```text
+Slay the Spire 2/
+└── mods/
+    ├── STS2-RitsuLib/          # RitsuLib 框架文件
+    └── ArabellaMod/
+        ├── ArabellaMod.dll
+        ├── ArabellaMod.json
+        └── ArabellaMod.pck
 ```
 
-`dotnet new ritsulibmod -n MyMod` 会生成名为 `MyMod` 的工程，并把模板中的 `ArabellaMod`、示例类名、资源文件名、资源目录、manifest 名称、namespace 和本地化 id 同步替换成新名称。
+启动游戏并确认框架与 Mod 正常加载后，在角色选择界面选择艾拉贝拉。仓库提供源码和资源，直接下载源码 ZIP 后仍需构建，才能得到上述运行文件。
 
-### 方式 B：手动复制模板
+## 从源码构建
 
-1. 复制整个目录并改名为你的 Mod 名称。
-2. 修改 `ArabellaMod.json` 里的 `id`、`name`、`author`、`description`。
-3. 修改 `ArabellaModCode/Entry.cs` 里的 `ModId`。
-4. 如需彻底改名，同时修改 `.csproj`、`.sln`、`project.godot` 的项目名和命名空间。
-5. 把资源目录 `ArabellaMod/` 改成你的 `ModId`，并同步更新代码中的 `Entry.ResPath` 相关路径。
+项目使用 **.NET 9、C# 13、Godot.NET.Sdk 4.5.1**。完整资源导出还需要与项目匹配的 MegaDot/Godot .NET 可执行文件及导出环境；本机路径填写方式见 [local.props.template](local.props.template)。
 
-## 配置本机路径
+克隆项目并创建本机配置：
 
 ```powershell
+git clone https://github.com/mosharrafhabbal-png/ArabellaMod.git
+cd ArabellaMod
 Copy-Item .\local.props.template .\local.props
 ```
 
-在 `local.props` 中设置以下值（文件已在 `.gitignore`，不要提交）：
+编辑 `local.props`，设置以下路径：
 
-| 字段 | 说明 |
-|---|---|
-| `Sts2Dir` | Slay the Spire 2 安装目录 |
-| `Sts2DataDir` | 游戏 dll 目录，通常是 `$(Sts2Dir)/data_sts2_windows_x86_64` |
-| `GodotExe` | 用于导出 pck 的 MegaDot/Godot 可执行文件 |
-| `RitsuLibDeployDir` | RitsuLib 本机部署目录，默认 `$(Sts2Dir)/mods/STS2-RitsuLib`。这是 RitsuLib 包/构建逻辑把 RitsuLib 复制到游戏 mods 目录的位置，**不是当前 Mod 自身的输出目录** |
+| 字段 | 用途 |
+| --- | --- |
+| `Sts2Dir` | 游戏安装目录。 |
+| `Sts2DataDir` | 游戏程序集目录，默认是游戏目录下的 `data_sts2_windows_x86_64`。 |
+| `GodotExe` | 用于导出 `.pck` 的 MegaDot/Godot .NET 可执行文件。 |
+| `RitsuLibDeployDir` | 可选，RitsuLib 框架的部署目录。 |
 
-## RitsuLib 版本兼容性
+执行完整构建：
 
-> ⚠️ **重要：发布前请校对 manifest 与 csproj 版本对齐**
->
-> `ArabellaMod.json` 中 `dependencies[STS2-RitsuLib].version` **必须**与 `.csproj` 里 `STS2.RitsuLib` 包实际编译使用的版本一致。模板构建时会自动同步该依赖版本；`min_game_version` 和有意声明较低运行时下限的场景仍需人工确认。详细步骤见下方 [发布前 checklist：版本对齐](#发布前-checklist版本对齐)。
-
-### 当前版本快照（截至 2026-05-22）
-
-| 项 | 值 |
-|---|---|
-| STS2 游戏当前版本 | `0.106.0` |
-| RitsuLib 当前版本 | `0.3.0` |
-| 模板 manifest 状态 | `min_game_version` 与 `dependencies[STS2-RitsuLib].version` 已对齐 |
-
-### 版本对应表
-
-下表汇总主要边界版本对应的 STS2 主要目标版本，整理自 [STS2-RitsuLib Releases](https://github.com/BAKAOLC/STS2-RitsuLib/releases) 的公告。未在表中显式列出的小版本沿用所在区间；遇到边界版本时以对应 release notes 为准。
-
-| RitsuLib 版本 | 主要目标 STS2 版本 | 兼容（Compat）包 |
-|---|---|---|
-| `v0.3.0+`（2026-05-22 起） | `0.106.0` | `0.103.2`；删除了 `0.104.0` 兼容支持 |
-| `v0.2.29` ~ `v0.2.40` | `0.105.1` | `0.104.0`、`0.103.2` |
-| `v0.2.27` ~ `v0.2.28` | `0.105.0` | `0.104.0`、`0.103.2` |
-| `v0.2.0` ~ `v0.2.26` | `0.104.0` | 自 `v0.2.6` 起实验性提供 `0.103.2`；同步移除 `0.99.1` 兼容 |
-| `v0.0.x` / `v0.1.x` | `0.99.1` 及更早 | — |
-
-### 包选择：主线与兼容包
-
-模板默认引用主线 `STS2.RitsuLib`，跟踪 NuGet 最新版本：
-
-```xml
-<PackageReference Include="STS2.RitsuLib" Version="*" GeneratePathProperty="true" />
+```powershell
+dotnet build .\ArabellaMod.csproj
 ```
 
-**三个 RitsuLib 包一次只能启用一个。** 仍针对老分支的代码，注释主线包并启用对应兼容包：
+默认构建会编译 C#，将 DLL 和 Mod 清单复制到 `mods/ArabellaMod/`，并调用 Godot 向同一目录导出 PCK。
 
-```xml
-<!-- STS2 0.104.0 兼容分支（v0.3.0 起已停止维护） -->
-<PackageReference Include="STS2.RitsuLib.Compat.0.104.0" Version="*" />
+只检查 C# 编译、跳过本 Mod 的复制和 PCK 导出时，可使用：
 
-<!-- STS2 0.103.2 兼容分支 -->
-<PackageReference Include="STS2.RitsuLib.Compat.0.103.2" Version="*" />
+```powershell
+dotnet build .\ArabellaMod.csproj /p:RunPckExport=false /p:CopyModOnBuild=false
 ```
 
-兼容包只是选择对应游戏分支，并不会恢复所有旧 API；部分老 Mod 仍然需要修改并重新编译。
+此命令仍需要有效的游戏程序集路径。项目当前以 `Version="*"` 引用 RitsuLib，构建时会将实际解析到的依赖版本同步到 Mod 清单；更新依赖后，请核对游戏版本和运行环境。
 
-项目还引用 `Nothing.STS2RitsuLib.ModAnalyzers` —— 一个 AI 编写的辅助分析器，开发期会提示 RitsuLib Mod 模板中常见的 manifest 和资源配置问题。
+## 画面与音效设置
 
-### 发布前 checklist：版本对齐
+在主菜单或局内暂停菜单的艾拉贝拉设置页，可以调整：
 
-> **`.csproj` 里的 `PackageReference` 只控制编译时拉取；`ArabellaMod.json` 的 `dependencies` 是游戏加载器在运行时校验的。模板会在构建时把 `STS2-RitsuLib` 依赖版本同步为实际解析到的 NuGet 版本，但 `min_game_version` 仍需人工确认。**
+- 背身动画开关与显示大小（80%～150%）。
+- 序列帧特效开关。
+- 人物语音、特效声音的独立开关与音量（50%～150%）。
 
-如果发布时 manifest 没有同步到编译使用的新版 RitsuLib，玩家装了旧版 RitsuLib 仍能通过 manifest 校验、运行时却会因 API 缺失或签名变化崩掉；反过来 manifest 写得过新，会让本来能跑的玩家被错误拒绝。
+设置会保存，并提供恢复默认选项。
 
-每次发布前请：
+## 源码导航
 
-1. 构建后确认 `ArabellaMod.json` 的 `dependencies[STS2-RitsuLib].version` 已同步为实际解析到的 `STS2.RitsuLib` 版本。
-2. 切换到兼容包（`Compat.0.104.0` / `Compat.0.103.2`）时，把 `min_game_version` 同步调到对应分支；`dependencies[].id` 保持 `STS2-RitsuLib`（兼容包对外暴露的 mod id 不变）。
-3. 如果 manifest 版本是作为"运行时下限"而不是编译版本（例如声明 `0.3.0+` 都可用），在发布说明里明确，并自己测过下限能跑通。
+| 路径 | 内容 |
+| --- | --- |
+| [ArabellaModCode/Cards](ArabellaModCode/Cards) | 卡牌效果与卡图配置。 |
+| [ArabellaModCode/Mechanics](ArabellaModCode/Mechanics) | 掌控、放纵、感应、欲火、兴奋及相关 UI。 |
+| [ArabellaModCode/Powers](ArabellaModCode/Powers) | 裂创和其他战斗状态。 |
+| [ArabellaModCode/Relics](ArabellaModCode/Relics) | 猩红蛇鞭及其升级形态。 |
+| [ArabellaModCode/Animation](ArabellaModCode/Animation) | 角色动画与播放控制。 |
+| [ArabellaModCode/Audio](ArabellaModCode/Audio)、[Vfx](ArabellaModCode/Vfx) | 语音、音效及战斗特效。 |
+| [ArabellaMod](ArabellaMod) | Godot 场景、图像、音频和本地化资源。 |
+| [tools](tools) | 部署辅助脚本与机制回归检查。 |
 
-### 升级注意事项
+已有的局部回归检查可在项目根目录运行：
 
-#### 升级到 RitsuLib `v0.3.0` / STS2 `0.106.0`
-
-主要变化（来自 [v0.3.0 release notes](https://github.com/BAKAOLC/STS2-RitsuLib/releases/tag/v0.3.0)）：
-
-- **破坏性变更**：移除 `RunSidecar` 相关设计，完全被 `RunSavedData` 取代。
-- 新增 `TargetType` 注册能力，支持自定义 `TargetType`。
-- 加强 Loader 的加载目标检测：分支版本文件使用哈希校验，未匹配的版本被丢弃。
-- 移除 `0.104.0` 兼容支持。
-
-#### 升级到 RitsuLib `v0.2.27` / STS2 `0.105.0`（历史）
-
-仍从更早分支（`v0.2.0` ~ `v0.2.26` / STS2 `0.104.0`）迁移时请检查：
-
-- 版本条件编译改为累积区间宏 `STS2_AT_LEAST_<ver>`；旧的 `STS2_V_<ver>` 不再推荐。
-- AnyPlayer / AnyAny 目标逻辑调整；旧卡牌目标、基础构造函数签名和注册逻辑要按新 API 检查。
-- 卡牌右下角支持额外图标数量标签，并处理与原版 UI 的冲突；自定义 UI 或图标补丁需确认显示层级和位置。
-- 保留/flush 相关 hook 和 event 有替换、移除或 `[Obsolete]` 标记；旧代码使用 `CardRetainedEvent`、`CardsFlushedEvent` 或旧 `Hook.*` 入口需迁移。
-- `Badge`、`BadgeRuntimeTemplate`、`BadgePool.CreateAll` 和 `ModBadgeTemplate` 构造签名调整；旧代码可能需更新以避免 `MissingMethodException`。
-
-## 构建
-
-| 命令 | 行为 |
-|---|---|
-| `dotnet build .\ArabellaMod.csproj` | 完整构建：编译 + `CopyMod` + `ExportPCK` |
-| `... /p:RunPckExport=false` | 跳过 PCK 导出（不需要 `GodotExe`） |
-| `... /p:CopyModOnBuild=false` | 跳过复制到游戏 mods 目录（产物只留在 `bin/`） |
-| `... /p:RunPckExport=false /p:CopyModOnBuild=false` | 仅验证 C# 编译 |
-
-完整构建会在 `Build` 之后运行两个 MSBuild target：
-
-- **`CopyMod`**：复制 dll 和 manifest 到游戏的 `mods/ArabellaMod` 目录。
-- **`ExportPCK`**：调用 `GodotExe` 导出 pck 到同一个 Mod 目录。
-
-> `RitsuLibDeployDir` 只控制 RitsuLib 框架自身的部署位置；当前 Mod 的 dll、manifest 和 pck 由 `ModOutputDir` 控制（默认 `$(Sts2Dir)/mods/$(MSBuildProjectName)`）。
-
-## 目录结构
-
-```text
-ArabellaMod/
-├── ArabellaModCode/   # C# 源码
-├── ArabellaMod/       # Godot 资源、本地化和占位场景
-├── ArabellaMod.csproj
-├── ArabellaMod.json   # Mod manifest
-├── project.godot
-└── local.props.template
+```powershell
+powershell -File .\tools\card-rewrite-tests\Run.ps1
+powershell -File .\tools\indulgent-nature-tests\Run.ps1
+powershell -File .\tools\lust-survival-tests\Run.ps1
 ```
 
-`res://ArabellaMod/...` 是 Godot/PCK 内的资源路径，对应仓库里的 `ArabellaMod/` 资源目录，**不是 C# namespace**。通过 NuGet 模板创建项目时，这些目录名、文件名和 namespace 会按新 Mod 名同步替换。
+这些检查覆盖部分卡牌结算、纵欲本相和欲火救命逻辑，完整效果仍需进入游戏验证。
 
-## 模板内容
+## 仓库范围
 
-### 示例角色
+仓库保存项目源码、美术音频资源、构建配置与开发工具。卡牌设计表格所在的 `design/` 目录仅保留在本地，不上传；`local.props`、构建缓存、`artifacts/` 和 `tmp/` 同样由 `.gitignore` 排除。
 
-| 项 | 值 |
-|---|---|
-| 类型 | `ArabellaModCharacter` |
-| 预期 id | `ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER` |
-| starter 牌组 | 4 × `ArabellaModStrike`、4 × `ArabellaModDefend`、1 × `ArabellaModRelic` |
-| 资源配置 | `CharacterAssetProfile`；模板只指定静态占位资源，未指定的音频/拖尾/转场等字段从 `PlaceholderCharacterId` 回退 |
-
-### 示例卡牌与遗物
-
-| 类型 | 池 | 预期 id |
-|---|---|---|
-| `ArabellaModStrike`（攻击） | 角色卡池 | `ARABELLA_MOD_CARD_ARABELLA_MOD_STRIKE` |
-| `ArabellaModDefend`（技能） | 角色卡池 | `ARABELLA_MOD_CARD_ARABELLA_MOD_DEFEND` |
-| `ArabellaModRelic` | `ArabellaModRelicPool` | `ARABELLA_MOD_RELIC_ARABELLA_MOD_RELIC` |
-
-### 静态占位资源
-
-**图片**（`res://ArabellaMod/images/...`）：
-
-- `cards/ArabellaModStrike.png`、`cards/ArabellaModDefend.png`：示例卡图。
-- `relics/ArabellaModRelic.png`：示例遗物图标。
-- `characters/ArabellaMod_character_*.png`：角色头像、角色选择图、地图标记和能量图标。
-
-**场景**（`res://ArabellaMod/scenes/characters/...`）：
-
-| 场景文件 | 用途 | 占位结构 |
-|---|---|---|
-| `ArabellaMod_character.tscn` | 战斗人物 | `%Visuals`、`%Bounds`、`%IntentPos`、`%CenterPos`、`%TalkPos` |
-| `ArabellaMod_energy_counter.tscn` | 能量表盘 | `%EnergyVfxBack`、`%Layers`、`%RotationLayers`、`%EnergyVfxFront`、`Label` |
-| `ArabellaMod_merchant.tscn` | 商店人物 | — |
-| `ArabellaMod_rest_site.tscn` | 火堆人物 | `%ControlRoot`、`%SelectionReticle`、`%Hitbox`、`%ThoughtBubbleRight`、`%ThoughtBubbleLeft` |
-| `ArabellaMod_character_select_bg.tscn` | 角色选择背景 | — |
-
-这些资源只用于保证模板可见、可替换，不追求原版动画效果。复制模板后替换为自己的素材即可；如果改了路径，同步更新对应 `AssetProfile`。
-
-## Manifest 格式
-
-`ArabellaMod.json` 是 Mod 的清单文件，游戏加载器在启动时读取它来识别 Mod、检查依赖、决定是否加载。完整示例：
-
-```json
-{
-  "id": "ArabellaMod",
-  "name": "ArabellaMod",
-  "pck_name": "ArabellaMod",
-  "author": "Author",
-  "description": "A starter Slay the Spire 2 mod template built on RitsuLib.",
-  "version": "0.0.0",
-  "has_pck": true,
-  "has_dll": true,
-  "affects_gameplay": true,
-  "min_game_version": "0.106.0",
-  "dependencies": [
-    { "id": "STS2-RitsuLib", "version": "0.3.0" }
-  ]
-}
-```
-
-### 字段说明
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | string | Mod 唯一标识。**必须与 `Entry.ModId` 完全一致**，也建议与 `mods/<id>` 目录名一致。游戏内依赖、本地化前缀和资源路径都依赖这个值 |
-| `name` | string | Mod 列表中的显示名，可包含空格和中文 |
-| `pck_name` | string | `.pck` 文件名（不含扩展名）。**必须与 `.csproj` 实际导出的 PCK 文件名一致**，否则即使 `has_pck=true` 也加载不到资源 |
-| `author` | string | 作者名，显示用 |
-| `description` | string | Mod 简介，显示在 Mod 列表 |
-| `version` | string | 此 Mod 自身的版本号，建议 SemVer（`主.次.修`），每次发布前更新 |
-| `has_pck` | bool | 是否分发 `.pck`。纯代码 Mod 可置 `false` 并跳过 `ExportPCK` |
-| `has_dll` | bool | 是否分发 `.dll`。纯资源 Mod 可置 `false` |
-| `affects_gameplay` | bool | 是否影响游戏玩法。开启后游戏会在存档/成就等处做相应标记；仅纯视觉/本地化可设 `false` |
-| `min_game_version` | string | 兼容的最低 STS2 版本，低于该版本拒绝加载。**应与 `.csproj` 选用的 RitsuLib 包面向的游戏分支匹配**（见上文 [RitsuLib 版本兼容性](#ritsulib-版本兼容性)） |
-| `dependencies` | array | 依赖列表。每项使用 `id` + `version`。**旧版单对象 `min_version` 写法已不支持** |
-| `dependencies[].id` | string | 被依赖 Mod 的 `id`。RitsuLib 框架的 id 是 `STS2-RitsuLib` |
-| `dependencies[].version` | string | 被依赖 Mod 的最低版本。**`STS2-RitsuLib` 的版本必须与 `.csproj` 编译时的 NuGet 版本严格一致**，详见上文 [发布前 checklist：版本对齐](#发布前-checklist版本对齐) |
-
-## 开发提示
-
-- 新内容优先写 `AssetProfile`；个别历史兼容字段才考虑覆写 `Custom...Path`。
-- 角色资源字段没写时，RitsuLib 会从 `PlaceholderCharacterId` 对应的原版角色配置补齐。
-- 资源路径要以 `res://` 开头，并确认 PCK 内目录名和大小写正确。
-- `.tscn` 场景需要确认已打包进 Mod 资源；需绑定脚本时，写本地包装类并在 `Entry.Initialize()` 调用 `EnsureGodotScriptsRegistered(...)`。
+项目基于 RitsuLib 及其 Mod 模板开发，感谢框架与工具作者的工作。
