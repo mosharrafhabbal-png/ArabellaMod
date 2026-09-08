@@ -1,0 +1,18 @@
+{
+  "id": "ArabellaMod",
+  "name": "ArabellaMod",
+  "pck_name": "ArabellaMod",
+  "author": "Kalipei",
+  "description": "从卡厄思来到尖塔的神秘而又迷人的女人",
+  "version": "0.1.0",
+  "has_pck": true,
+  "has_dll": true,
+  "affects_gameplay": true,
+  "min_game_version": "0.110.0",
+  "dependencies": [
+    {
+      "id": "STS2-RitsuLib",
+      "version": "0.5.20"
+    }
+  ]
+}

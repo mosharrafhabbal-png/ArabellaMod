@@ -1,0 +1,215 @@
+using ArabellaMod.Characters;
+using ArabellaMod.Mechanics;
+using ArabellaMod.Powers;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using System.Text.Json;
+
+internal static class Program
+{
+    private static int checks;
+    private static void Equal(int expected, int actual, string label)
+    {
+        if (expected != actual) throw new Exception($"{label}: expected {expected}, got {actual}");
+        checks++;
+    }
+    private static async Task Main(string[] args)
+    {
+        var context = new PlayerChoiceContext();
+        var dispatcher = new IndulgenceSingleton();
+        var owner = new Player();
+        var queen = new ArabellaIndulgenceQueenPower();
+        owner.Creature.Powers[typeof(ArabellaIndulgenceQueenPower)] = queen;
+        var card = new TestCard(owner);
+        await dispatcher.AfterCardExhausted(context, card, false);
+        Equal(1, card.Resolutions, "ordinary Indulgence");
+        Equal(1, owner.Excitement, "ordinary excitement");
+        Equal(1, queen.Triggers, "ordinary queen");
+
+        var power = new ArabellaIndulgentNaturePower { Owner = owner.Creature, Amount = 1 };
+        owner.Creature.Powers[typeof(ArabellaIndulgentNaturePower)] = power;
+        card = new TestCard(owner);
+        await dispatcher.AfterCardExhausted(context, card, true);
+        await power.AfterCardExhausted(context, card, true);
+        Equal(2, card.Resolutions, "double card effect");
+        Equal(2, card.EtherealResolutions, "ethereal flag preserved");
+        Equal(2, owner.Excitement, "no repeated excitement");
+        Equal(2, queen.Triggers, "no repeated queen");
+        Equal(1, owner.Lust, "single exhaust refund");
+
+        var derived = new TestCard(owner) { Derived = true };
+        await power.AfterCardExhausted(context, derived, false);
+        await power.AfterCardExhausted(context, new TestCard(new Player()), false);
+        Equal(1, owner.Lust, "derived/other owner do not refund");
+        var noKeyword = new TestCard(owner);
+        noKeyword.Keywords.Clear();
+        await dispatcher.AfterCardExhausted(context, noKeyword, false);
+        Equal(0, noKeyword.Resolutions, "keyword required");
+        var otherCharacter = new Player { Character = new object() };
+        var otherCard = new TestCard(otherCharacter);
+        await dispatcher.AfterCardExhausted(context, otherCard, false);
+        Equal(0, otherCard.Resolutions, "character boundary");
+
+        // A repeated effect can exhaust a different card; each actual exhaust is
+        // independent, but neither the queen nor excitement runs per repetition.
+        int beforeExcitement = owner.Excitement, beforeQueen = queen.Triggers;
+        int childResolutions = 0;
+        card = new TestCard(owner) { Effect = async () => {
+            var child = new TestCard(owner);
+            await dispatcher.AfterCardExhausted(context, child, false);
+            childResolutions += child.Resolutions;
+        }};
+        await dispatcher.AfterCardExhausted(context, card, false);
+        Equal(2, card.Resolutions, "nested parent");
+        Equal(4, childResolutions, "two independently doubled children");
+        Equal(3, owner.Excitement - beforeExcitement, "one excitement per nested exhaust");
+        Equal(3, queen.Triggers - beforeQueen, "one queen per nested exhaust");
+
+        // Gaining a stack mid-resolution must not grow the current repetition loop.
+        card = new TestCard(owner) { Effect = () => { power.Amount++; return Task.CompletedTask; } };
+        await dispatcher.AfterCardExhausted(context, card, false);
+        Equal(2, card.Resolutions, "snapshot stack count");
+        power.Amount = 2;
+        card = new TestCard(owner);
+        await dispatcher.AfterCardExhausted(context, card, false);
+        Equal(3, card.Resolutions, "additional copies stack additively");
+
+        var nature = new ArabellaSerpentineNaturePower { Owner = owner.Creature, Amount = 2 };
+        await nature.AfterPowerAmountChanged(context, nature, 1, null, null);
+        Equal(1, nature.Amount, "Serpentine Nature cannot stack");
+        int previousLust = owner.Lust;
+        nature.Amount = 8; // Old saved combat with stacked copies still refunds only 1.
+        await nature.AfterCardExhausted(context, new TestCard(owner), false);
+        Equal(1, owner.Lust - previousLust, "legacy stacks refund exactly one");
+        await nature.AfterCardExhausted(context, new TestCard(owner) { Derived = true }, false);
+        Equal(1, owner.Lust - previousLust, "Serpentine Nature excludes derived cards");
+        if (nature.StackType != MegaCrit.Sts2.Core.Entities.Powers.PowerStackType.Single)
+            throw new Exception("Serpentine Nature must hide its stack counter");
+        checks++;
+
+        string root = args[0];
+        foreach (var locale in new[] { "zhs", "eng" })
+        foreach (var table in new[] { "cards", "powers" })
+        {
+            using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "ArabellaMod", "localization", locale, table + ".json")));
+            string prefix = table == "cards" ? "ARABELLA_MOD_CARD_ARABELLA_INDULGENT_NATURE" : "ARABELLA_MOD_POWER_ARABELLA_INDULGENT_NATURE_POWER";
+            foreach (var suffix in new[] { ".title", ".description" })
+                if (string.IsNullOrWhiteSpace(json.RootElement.GetProperty(prefix + suffix).GetString())) throw new Exception("Missing localization");
+            checks++;
+        }
+        byte[] png = File.ReadAllBytes(Path.Combine(root, "ArabellaMod/images/cards/005shengji.png"));
+        if (!png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })) throw new Exception("Invalid PNG");
+        checks++;
+
+        // Validate the Harmony target against the installed assembly, not only
+        // the decompiled source checkout (the two can be different versions).
+        var props = System.Xml.Linq.XDocument.Load(Path.Combine(root, "local.props"));
+        string game = props.Descendants("Sts2Dir").Single().Value;
+        using var pe = new PEReader(File.OpenRead(Path.Combine(game, "data_sts2_windows_x86_64/sts2.dll")));
+        var metadata = pe.GetMetadataReader();
+        var tooth = metadata.TypeDefinitions.Select(metadata.GetTypeDefinition).Single(t => metadata.GetString(t.Name) == "ArchaicTooth");
+        var getter = tooth.GetMethods().Select(metadata.GetMethodDefinition).Single(m => metadata.GetString(m.Name) == "get_TranscendenceUpgrades");
+        if (!getter.Attributes.HasFlag(System.Reflection.MethodAttributes.Static)) throw new Exception("Unexpected Harmony target");
+        checks++;
+        Console.WriteLine($"PASS: {checks} checks (production dispatch/power, localization, PNG, installed-game Harmony target).");
+    }
+}
+internal sealed class TestCard(Player owner) : CardModel(owner), IIndulgenceCard
+{
+    public int Resolutions, EtherealResolutions;
+    public Func<Task>? Effect;
+    public async Task OnIndulgence(PlayerChoiceContext context, bool ethereal)
+    { Resolutions++; if (ethereal) EtherealResolutions++; if (Effect != null) await Effect(); }
+}
+namespace MegaCrit.Sts2.Core.GameActions.Multiplayer { public class PlayerChoiceContext; }
+namespace MegaCrit.Sts2.Core.Models
+{
+    public class Player
+    {
+        public object Character = new ArabellaModCharacter();
+        public TestCreature Creature;
+        public int Lust, Excitement;
+        public Player() { Creature = new TestCreature { Player = this }; }
+    }
+    public class TestCreature : MegaCrit.Sts2.Core.Entities.Creatures.Creature
+    {
+        public Player Player = null!;
+        public Dictionary<Type, object> Powers = [];
+        public T? GetPower<T>() where T : class => Powers.GetValueOrDefault(typeof(T)) as T;
+    }
+    public class CardModel(Player owner)
+    {
+        public Player Owner = owner;
+        public HashSet<string> Keywords = [ArabellaKeywords.Indulgence];
+        public bool Derived;
+    }
+}
+namespace ArabellaMod.Characters { public class ArabellaModCharacter; }
+namespace ArabellaMod.Mechanics
+{
+    public static class ArabellaKeywords { public const string Indulgence = "indulgence"; }
+    public static class ArabellaResources { public const string LustId = "lust"; }
+    public interface IIndulgenceCard { Task OnIndulgence(PlayerChoiceContext context, bool ethereal); }
+    public static class ArabellaExcitement
+    {
+        public static Task Gain(Player p, int amount, object source, PlayerChoiceContext context)
+        { p.Excitement += amount; return Task.CompletedTask; }
+    }
+}
+namespace ArabellaMod.Cards
+{
+    internal static class ArabellaCardLogic { public static bool CanGainLustFromExhaust(CardModel c) => !c.Derived; }
+}
+namespace MegaCrit.Sts2.Core.Entities.Creatures { public class Creature; }
+namespace MegaCrit.Sts2.Core.Models { public class PowerModel; }
+namespace MegaCrit.Sts2.Core.Entities.Cards { }
+namespace MegaCrit.Sts2.Core.Entities.Powers { public enum PowerType { Buff } public enum PowerStackType { Counter, Single } }
+namespace STS2RitsuLib.Interop.AutoRegistration
+{
+    public class RegisterSingletonAttribute : Attribute;
+    public class RegisterPowerAttribute : Attribute;
+}
+namespace STS2RitsuLib.Models
+{
+    public enum HookType { Combat }
+    public class HookedSingletonModel(HookType type)
+    {
+        public virtual Task AfterCardExhausted(PlayerChoiceContext c, CardModel card, bool ethereal) => Task.CompletedTask;
+    }
+}
+namespace STS2RitsuLib.Scaffolding.Content
+{
+    public class PowerAssetProfile;
+    public abstract class ModPowerTemplate : PowerModel
+    {
+        public TestCreature Owner = null!;
+        public int Amount;
+        public void SetAmount(int value) { Amount = value; }
+        public virtual Task AfterPowerAmountChanged(PlayerChoiceContext context, PowerModel power, decimal amount, MegaCrit.Sts2.Core.Entities.Creatures.Creature? applier, CardModel? cardSource) => Task.CompletedTask;
+        public abstract MegaCrit.Sts2.Core.Entities.Powers.PowerType Type { get; }
+        public abstract MegaCrit.Sts2.Core.Entities.Powers.PowerStackType StackType { get; }
+        public abstract PowerAssetProfile AssetProfile { get; }
+        public void Flash() { }
+        public virtual Task AfterCardExhausted(PlayerChoiceContext c, CardModel card, bool ethereal) => Task.CompletedTask;
+    }
+}
+namespace STS2RitsuLib.Combat.SecondaryResources
+{
+    public static class SecondaryResourceCmd
+    {
+        public static Task Gain(Player p, string id, int amount, object source)
+        { p.Lust += amount; return Task.CompletedTask; }
+    }
+}
+namespace ArabellaMod.Powers
+{
+    public static class ArabellaPowerIcons
+    { public static STS2RitsuLib.Scaffolding.Content.PowerAssetProfile Create(string path) => new(); }
+    public class ArabellaIndulgenceQueenPower
+    {
+        public int Triggers;
+        public Task OnIndulgence(PlayerChoiceContext context) { Triggers++; return Task.CompletedTask; }
+    }
+}

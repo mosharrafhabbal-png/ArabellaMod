@@ -1,0 +1,8 @@
+{
+  "ARABELLA_MOD_RELIC_ARABELLA_MOD_RELIC.title": "猩红蛇鞭",
+  "ARABELLA_MOD_RELIC_ARABELLA_MOD_RELIC.description": "每当打出并结算一张能力牌后，你可以选择至多1张其他手牌将其消耗。",
+  "ARABELLA_MOD_RELIC_ARABELLA_MOD_RELIC.flavor": "欲望从不需要命令，它只需要一次许可。",
+  "ARABELLA_MOD_RELIC_ARABELLA_MOD_UPGRADED_RELIC.title": "猩红蛇鞭·蜕",
+  "ARABELLA_MOD_RELIC_ARABELLA_MOD_UPGRADED_RELIC.description": "每当打出并结算一张能力牌后，你可以从手牌或抽牌堆中选择至多1张牌将其消耗。每累计获得[blue]{Lust}[/blue]点欲火，回复[green]{Heal}[/green]点生命。",
+  "ARABELLA_MOD_RELIC_ARABELLA_MOD_UPGRADED_RELIC.flavor": "欲望盘绕成环，每一次收紧都令伤口重新闭合。"
+}

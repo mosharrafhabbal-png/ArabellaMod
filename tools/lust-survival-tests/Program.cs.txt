@@ -1,0 +1,135 @@
+using ArabellaMod.Mechanics;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.ValueProps;
+using STS2RitsuLib.Combat.SecondaryResources;
+using STS2RitsuLib.RunData;
+using System.Text.Json;
+
+static class Program
+{
+    static int checks;
+    static void Check(bool b, string message) { if (!b) throw new Exception(message); checks++; }
+    static void Equal(int expected, int actual, string message) => Check(expected == actual, $"{message}: {expected} != {actual}");
+    static void Mark(LustSurvivalSingleton s, Creature c) => s.ModifyHpLostAfterOstyLate(c,c.CurrentHp,ValueProp.Move,null,null);
+    static async Task Main(string[] args)
+    {
+        LustSurvivalRunData.Register();
+        var s = new LustSurvivalSingleton(); SecondaryResourceCmd.Listener = s;
+        var p = new Player(); var c = p.Creature;
+        await s.BeforeCombatStart();
+        Equal(9,LustSurvivalRunData.GetMaximum(p),"new/legacy run defaults to 9");
+        await SecondaryResourceCmd.Gain(p,"lust",50,null); Equal(9,p.Lust,"gain clamped to initial 9");
+        s.ModifyHpLostAfterOstyLate(c,c.CurrentHp-1,ValueProp.Move,null,null);
+        Check(s.ShouldDie(c),"nonlethal marker cannot rescue direct death");
+        Mark(s,c); Check(!s.ShouldDie(c),"first rescue available");
+        c.CurrentHp=0; await s.AfterPreventingDeath(c);
+        Equal(27,c.CurrentHp,"9 Lust heals 27 before reducing cap"); Equal(0,p.Lust,"clears all Lust");
+        Equal(8,LustSurvivalRunData.GetMaximum(p),"first rescue permanently lowers maximum");
+        await s.AfterPreventingDeath(c); Equal(8,LustSurvivalRunData.GetMaximum(p),"duplicate callback cannot charge twice");
+        await SecondaryResourceCmd.Gain(p,"lust",50,null);Equal(8,p.Lust,"new gains use reduced cap");
+        Mark(s,c); Check(s.ShouldDie(c),"second rescue denied in same combat despite refilled Lust");
+        await s.BeforeCombatStart(); Equal(8,LustSurvivalRunData.GetMaximum(p),"new combat preserves cap reduction");
+        Mark(s,c);Check(!s.ShouldDie(c),"new combat restores rescue use");c.CurrentHp=0;
+        await s.AfterPreventingDeath(c);Equal(24,c.CurrentHp,"second combat heals actual 8 Lust");Equal(7,LustSurvivalRunData.GetMaximum(p),"cap decrements across combats");
+
+        // The adapter snapshots serialized per-run/per-player slots, not static/global state.
+        var snapshot=JsonSerializer.Serialize(p.Run.Slots);
+        var loaded=new Run {Slots=JsonSerializer.Deserialize<Dictionary<string,Dictionary<ulong,string>>>(snapshot)!};
+        var restored=new Player {Run=loaded,NetId=p.NetId};
+        Equal(7,LustSurvivalRunData.GetMaximum(restored),"JSON round trip preserves run penalty");
+        var ally=new Player {Run=loaded,NetId=2};Equal(9,LustSurvivalRunData.GetMaximum(ally),"another player unaffected");
+        var fresh=new Player {NetId=p.NetId};Equal(9,LustSurvivalRunData.GetMaximum(fresh),"same player new run restores 9");
+        await s.BeforeCombatStart(); p=restored;c=p.Creature;
+        c.CurrentHp=5;p.Lust=0;Mark(s,c);Check(s.ShouldDie(c),"zero Lust never rescues");
+        Equal(7,LustSurvivalRunData.GetMaximum(p),"failed rescue does not lower cap");
+        p.Lust=2;Mark(s,c);await s.AfterDeath(new(),c,true,0);
+        Check(s.ShouldDie(c),"another preventer clears stale lethal marker");
+        await s.AfterPreventingDeath(c);Equal(7,LustSurvivalRunData.GetMaximum(p),"unowned callback cannot lower cap");
+        var outsider=new Player {Character=new object(),Lust=10};Mark(s,outsider.Creature);
+        Check(s.ShouldDie(outsider.Creature),"other character excluded");
+        Equal(10,(int)s.ModifyMaxSecondaryResource(new(outsider,new("lust")),10),"other character cap unchanged");
+        Equal(10,(int)s.ModifyMaxSecondaryResource(new(p,new("excitement")),10),"excitement cap unchanged");
+
+        // Reach zero across seven more combats; the last available point still saves once.
+        for(int max=7;max>=1;max--) {
+            await s.BeforeCombatStart();c.CurrentHp=7;
+            await SecondaryResourceCmd.Gain(p,"lust",100,null);Equal(max,p.Lust,"cap before rescue");
+            Mark(s,c);Check(!s.ShouldDie(c),"rescue available with positive cap");c.CurrentHp=0;
+            await s.AfterPreventingDeath(c);Equal(max*3,c.CurrentHp,"last point is not lost before healing");
+            Equal(max-1,LustSurvivalRunData.GetMaximum(p),"permanent step down");
+        }
+        await s.BeforeCombatStart();await SecondaryResourceCmd.Gain(p,"lust",100,null);
+        Equal(0,p.Lust,"zero cap blocks future gains");Mark(s,c);Check(s.ShouldDie(c),"zero cap cannot rescue");
+        LustSurvivalRunData.RecordSurvival(p);Equal(0,LustSurvivalRunData.GetMaximum(p),"cap cannot be negative");
+        var options=Store.LastOptions!;
+        Check(options.WritePolicy==RunSavedDataWritePolicy.WhenSet && options.SchemaVersion==1,"saved slot uses explicit dirty writes and schema");
+        Check(Store.Modifications>=9,"rescues use persistent Modify API");
+        var source=File.ReadAllText(Path.Combine(args[0],"ArabellaModCode/Mechanics/ArabellaResources.cs"));
+        Check(source.Contains("MaxLust = 9;")&&source.Contains("ClampToMaxAmount = true"),"production registers clamped 9-point base cap");
+        Check(source.Contains("LustSurvivalRunData.Register();"),"run saved slot registered at initialization");
+        foreach(var locale in new[]{"zhs","eng"}) {
+            using var j=JsonDocument.Parse(File.ReadAllText(Path.Combine(args[0],"ArabellaMod/localization",locale,"static_hover_tips.json")));
+            var text=j.RootElement.GetProperty("ARABELLA_MOD_SECONDARY_RESOURCE_LUST.description").GetString()!;
+            Check(text.Contains("9")&&text.Contains(locale=="zhs"?"每场战斗一次":"Once per combat")&&text.Contains(locale=="zhs"?"永久":"permanently"),"localized permanent cap and once-per-combat");
+        }
+        Console.WriteLine($"PASS: {checks} production survival/save-state regression checks with isolated command and persistence adapters.");
+    }
+}
+
+namespace ArabellaMod { public static class Entry { public const string ModId="ArabellaMod"; } }
+namespace ArabellaMod.Characters { public class ArabellaModCharacter { } }
+namespace ArabellaMod.Mechanics { public static class ArabellaResources { public const int MaxLust=9; public const string LustId="lust"; } }
+namespace MegaCrit.Sts2.Core.Models { public class CardModel { } }
+namespace MegaCrit.Sts2.Core.ValueProps { public enum ValueProp { Move } }
+namespace MegaCrit.Sts2.Core.GameActions.Multiplayer { public class PlayerChoiceContext { } }
+namespace MegaCrit.Sts2.Core.Entities.Players {
+ public class Player {
+  public object Character=new ArabellaMod.Characters.ArabellaModCharacter(); public int Lust; public Run Run=new(); public ulong NetId=1;
+  public Creature Creature; public Player() {Creature=new() {Player=this};}
+ }
+ public class Run {public Dictionary<string,Dictionary<ulong,string>> Slots=new();}
+}
+namespace MegaCrit.Sts2.Core.Entities.Creatures {public class Creature {public Player? Player; public int CurrentHp=10;}}
+namespace STS2RitsuLib.Interop.AutoRegistration {public class RegisterSingletonAttribute:Attribute {}}
+namespace STS2RitsuLib.Models {
+ public enum HookType {Combat}
+ public class HookedSingletonModel(HookType type) {
+  public HookType Lifetime { get; } = type;
+  public virtual Task BeforeCombatStart()=>Task.CompletedTask;
+  public virtual decimal ModifyHpLostAfterOstyLate(Creature t,decimal a,ValueProp p,Creature? d,CardModel? c)=>a;
+  public virtual bool ShouldDie(Creature c)=>true;
+  public virtual Task AfterDeath(PlayerChoiceContext ctx,Creature c,bool prevented,float duration)=>Task.CompletedTask;
+  public virtual Task AfterPreventingDeath(Creature c)=>Task.CompletedTask;
+ }
+}
+namespace MegaCrit.Sts2.Core.Commands {public static class CreatureCmd {public static Task Heal(Creature c,int n) {c.CurrentHp+=n;return Task.CompletedTask;}}}
+namespace STS2RitsuLib.Combat.SecondaryResources {
+ public interface ISecondaryResourceHookListener {}
+ public record Definition(string Id);
+ public record SecondaryResourceMaxContext(Player Player,Definition Definition);
+ public static class SecondaryResourceCmd {
+  public static LustSurvivalSingleton Listener=null!;
+  public static int Get(Player p,string id)=>p.Lust;
+  public static Task Lose(Player p,string id,int amount,object? src) {p.Lust=Math.Max(0,p.Lust-amount);return Task.CompletedTask;}
+  public static Task Gain(Player p,string id,int n,object? src) {p.Lust+=n;return ClampToMax(p,id,src);}
+  public static Task ClampToMax(Player p,string id,object? src) {p.Lust=Math.Min(p.Lust,(int)Listener.ModifyMaxSecondaryResource(new(p,new(id)),ArabellaResources.MaxLust));return Task.CompletedTask;}
+ }
+}
+namespace STS2RitsuLib {
+ public static class RitsuLibFramework {public static Store GetRunSavedDataStore(string id)=>new();}
+}
+namespace STS2RitsuLib.RunData {
+ public enum RunSavedDataWritePolicy {WhenSet}
+ public class RunSavedDataOptions {public int SchemaVersion;public RunSavedDataWritePolicy WritePolicy;}
+ public class Store {
+  public static RunSavedDataOptions? LastOptions;public static int Modifications;
+  public PlayerRunSavedData<T> RegisterPerPlayer<T>(string key,Func<T> factory,RunSavedDataOptions options) {LastOptions=options;return new(key,factory);}
+ }
+ public class PlayerRunSavedData<T>(string key,Func<T> factory) {
+  public T Get(Player p) => p.Run.Slots.TryGetValue(key,out var players)&&players.TryGetValue(p.NetId,out var json)?JsonSerializer.Deserialize<T>(json)!:factory();
+  public void Modify(Player p,Action<T> mutate) {var data=Get(p);mutate(data);if(!p.Run.Slots.TryGetValue(key,out var players))p.Run.Slots[key]=players=new();players[p.NetId]=JsonSerializer.Serialize(data);Store.Modifications++;}
+ }
+}

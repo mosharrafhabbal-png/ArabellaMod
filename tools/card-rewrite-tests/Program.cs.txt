@@ -1,0 +1,123 @@
+using ArabellaMod.Cards;
+using ArabellaMod.Powers;
+using ArabellaMod.Mechanics;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Powers;
+using MegaCrit.Sts2.Core.ValueProps;
+using STS2RitsuLib.Combat.SecondaryResources;
+using System.Text.Json;
+
+static class Program {
+ static int checks;
+ static void Check(bool result, string label) { if(!result) throw new Exception(label); checks++; }
+ static void Equal(decimal expected, decimal actual, string label) => Check(expected==actual,$"{label}: expected {expected}, actual {actual}");
+ static async Task<T> Put<T>(T card, Player owner, PileType pile) where T:CardModel { card.Owner=owner; await CardPileCmd.Add(card,pile); return card; }
+ static CardModel Attack() => new() { Type=CardType.Attack };
+ sealed class DerivedAttack : CardModel, IArabellaSensingDerivedCard { public DerivedAttack() { Type=CardType.Attack; } }
+ sealed class DerivedSkill : CardModel, IArabellaSensingDerivedCard { public DerivedSkill() { Type=CardType.Skill; } }
+ sealed class Withdrawal : CardModel, IArabellaDerivedCard { }
+ static async Task Main(string[] args) {
+  foreach(bool upgraded in new[]{false,true}) {
+   var p = new Player(); var chain = new ArabellaSerpentKissChain { Owner=p }; if(upgraded) chain.Upgrade();
+   var target = new Creature();
+   for(int i=0;i<5;i++) { await Put(Attack(),p,PileType.Draw); await Put(i%2==0 ? (CardModel)new DerivedSkill() : new DerivedAttack(),p,PileType.Draw); }
+   await Put(new Withdrawal(),p,PileType.Draw);
+   var before=p.Piles[PileType.Draw].Cards.ToArray(); await chain.Play(new(),target);
+   Equal(upgraded?192:194,target.Hp,"chain two-hit damage");
+   Equal(11,p.Piles[PileType.Draw].Cards.Count,"chain moves existing cards only");
+   Check(p.Piles[PileType.Draw].Cards.Take(upgraded?4:3).All(c=>c is IArabellaSensingDerivedCard),"chain puts sensing skills AND attacks on top");
+   Check(before.All(c=>p.Piles[PileType.Draw].Cards.Contains(c)),"chain preserves all physical cards");
+   Equal(0,p.Piles[PileType.Hand].Cards.Count,"chain does not immediately draw or sense");
+   Equal(1,chain.SecondaryCosts().Lust,"chain Lust cost");
+   // Empty and undersized pools are valid; Withdrawal must never become eligible.
+   p=new Player(); chain.Owner=p; await Put(new Withdrawal(),p,PileType.Draw);
+   var only=await Put(new DerivedSkill(),p,PileType.Draw); await chain.Play(new(),new());
+   Check(p.Piles[PileType.Draw].Cards[0]==only,"undersized pool moves only eligible card");
+   p=new Player(); chain.Owner=p; await chain.Play(new(),new()); Equal(0,p.Piles[PileType.Draw].Cards.Count,"empty pool safe");
+
+   p=new Player(); var veil=new ArabellaLustfireVeil {Owner=p}; if(upgraded) veil.Upgrade(); await veil.Play(new());
+   Equal(upgraded?18:14,p.Creature.Block,"veil block"); Equal(2,veil.SecondaryCosts().Lust,"veil Lust");
+   var retaliation=p.Creature.GetPower<ArabellaLustfireVeilPower>()!; var enemy=new Creature();
+   for(int hit=0;hit<3;hit++) await retaliation.AfterDamageReceived(new(),p.Creature,new(),ValueProp.Move,enemy,null);
+   Equal(upgraded?9:6,enemy.GetPower<ArabellaLacerationPower>()!.Amount,"blocked multi-hit retaliation");
+   await retaliation.AfterDamageReceived(new(),p.Creature,new(),ValueProp.Unpowered,enemy,null);
+   await retaliation.AfterDamageReceived(new(),new Creature(),new(),ValueProp.Move,enemy,null);
+   await retaliation.AfterDamageReceived(new(),p.Creature,new(),ValueProp.Move,p.Creature,null);
+   Equal(upgraded?9:6,enemy.GetPower<ArabellaLacerationPower>()!.Amount,"no retaliation on nonattacks or another target");
+   await retaliation.AfterSideTurnEnd(new(),CombatSide.Player,[p.Creature]); Check(p.Creature.Powers.ContainsKey(typeof(ArabellaLustfireVeilPower)),"veil persists through player turn end");
+   await retaliation.AfterSideTurnEnd(new(),CombatSide.Enemy,[enemy]); Check(!p.Creature.Powers.ContainsKey(typeof(ArabellaLustfireVeilPower)),"veil expires after enemy turn");
+
+   p=new Player(); var backlash=new ArabellaBacklashStrangle {Owner=p}; if(upgraded) backlash.Upgrade();
+   Check(!backlash.CanonicalKeywords.Contains(CardKeyword.Exhaust),"backlash has no automatic Exhaust");
+   Check(backlash.CanonicalKeywords.Contains(CardKeyword.Control)&&backlash.CanonicalKeywords.Contains(CardKeyword.Indulgence),"backlash retains both mechanics");
+   Equal(8,backlash.ControlThreshold,"backlash Control 8");
+   enemy=new Creature {Hp=5}; await PowerCmd.Apply<ArabellaLacerationPower>(new(),enemy,9,p.Creature,null);
+   await backlash.Play(new(),enemy); Equal(9,p.Creature.Block,"backlash gains pre-hit wounds on lethal");
+   enemy=new Creature(); await backlash.Play(new(),enemy); Equal(upgraded?184:188,enemy.Hp,"backlash 12/16 damage"); Equal(9,p.Creature.Block,"no wounds no extra block");
+   await PowerCmd.Apply<ArabellaLacerationPower>(new(),enemy,7,p.Creature,null); await backlash.Play(new(),enemy);
+   Equal(7,enemy.GetPower<ArabellaLacerationPower>()!.Amount,"backlash does not trigger or spend wounds");
+   Equal(16,p.Creature.Block,"backlash shield from living target");
+   p.Combat.Enemies.Add(enemy); p.Exhausted=3; var hp=enemy.Hp; await backlash.OnIndulgence(new(),false);
+   Equal(upgraded?24:18,hp-enemy.Hp,"backlash preserves original Indulgence");
+
+   p=new Player(); var warmth=new ArabellaLingeringWarmth{Owner=p}; if(upgraded) warmth.Upgrade();
+   await Put(Attack(),p,PileType.Draw); await warmth.Play(new());
+   Equal(upgraded?8:5,p.Creature.Block,"warmth fixed block"); Equal(0,p.Piles[PileType.Hand].Cards.Count,"warmth no instant draw");
+   Equal(2,p.Creature.GetPower<DrawCardsNextTurnPower>()!.Amount,"warmth schedules two draws");
+   await warmth.Play(new()); Equal(4,p.Creature.GetPower<DrawCardsNextTurnPower>()!.Amount,"warmth next-turn draw stacks");
+   var expensive=await Put(Attack(),p,PileType.Hand); expensive.EnergyCost.Value=5;
+   await warmth.OnIndulgence(new(),false); Equal(upgraded?2:3,expensive.EnergyCost.Value,"warmth original Indulgence");
+
+   p=new Player(); var lavish=new ArabellaLavishRecovery{Owner=p}; if(upgraded) lavish.Upgrade();
+   var sacrifice=await Put(Attack(),p,PileType.Hand); await Put(new DerivedSkill(),p,PileType.Hand);
+   var exhaustCards=new List<CardModel>(); for(int i=0;i<(upgraded?5:3);i++) exhaustCards.Add(await Put(new DerivedSkill(),p,PileType.Exhaust));
+   var garbage=await Put(new Withdrawal(),p,PileType.Exhaust); var ctx=new PlayerChoiceContext(); ctx.Choices.Enqueue([sacrifice]);ctx.Choices.Enqueue(exhaustCards.ToArray());
+   CardSelectCmd.Offered.Clear(); await lavish.Play(ctx);
+   Check(sacrifice.Pile?.Type==PileType.Exhaust,"lavish pays with non-derived hand card");
+   Check(CardSelectCmd.Offered[0].All(c=>c is not IArabellaDerivedCard),"lavish sacrifice excludes ALL derived");
+   Check(CardSelectCmd.Offered[1].All(c=>c is IArabellaSensingDerivedCard),"lavish recovery excludes normal cards and Withdrawal");
+   Equal(upgraded?5:3,p.Piles[PileType.Draw].Cards.Count,"lavish recovers 3/5"); Check(garbage.Pile?.Type==PileType.Exhaust,"Withdrawal stays exhausted");
+   Equal(1,p.Piles[PileType.Hand].Cards.Count,"lavish does not immediately play recovered cards");
+   await lavish.OnIndulgence(new(),false); Equal(3,p.Lust,"lavish original Lust reward");
+   p=new Player(); lavish.Owner=p; await Put(new DerivedSkill(),p,PileType.Hand); var stranded=await Put(new DerivedSkill(),p,PileType.Exhaust);
+   await lavish.Play(new()); Check(stranded.Pile?.Type==PileType.Exhaust,"no valid sacrifice gives no free recovery");
+
+   p=new Player(); var coiled=new ArabellaCoiledBladeRecovery{Owner=p}; if(upgraded) coiled.Upgrade();
+   var selected=await Put(Attack(),p,PileType.Discard); var sameType=await Put(Attack(),p,PileType.Discard);
+   await Put(new DerivedAttack(),p,PileType.Discard); await Put(new CardModel{Type=CardType.Skill},p,PileType.Discard); await Put(Attack(),p,PileType.Exhaust);
+   ctx=new(); ctx.Choices.Enqueue([selected]); CardSelectCmd.Offered.Clear(); await coiled.Play(ctx);
+   Check(CardSelectCmd.Offered[0].Length==2,"coiled accepts only non-derived attacks in discard");
+   Check(selected.Pile?.Type==(upgraded?PileType.Hand:PileType.Draw),"coiled upgrade draws selected card");
+   Check(coiled.CanonicalKeywords.Contains(CardKeyword.Exhaust),"coiled exhausts");
+   var reprise=p.Creature.GetPower<ArabellaCoiledBladeRecoveryPower>()!;
+   Equal(2,reprise.ModifyCardPlayCount(selected,null,1),"marked attack repeats once"); Equal(1,reprise.ModifyCardPlayCount(sameType,null,1),"same card type is not same instance");
+   await reprise.AfterSideTurnEnd(new(),CombatSide.Player,[p.Creature]); Equal(2,reprise.ModifyCardPlayCount(selected,null,1),"reprise persists across turns");
+   Equal(3,reprise.ModifyCardPlayCount(selected,null,2),"additive with native repeat effects");
+   await reprise.AfterModifyingCardPlayCount(selected); Equal(1,reprise.ModifyCardPlayCount(selected,null,1),"repeat consumed before play series");
+   Check(!p.Creature.Powers.ContainsKey(typeof(ArabellaCoiledBladeRecoveryPower)),"reprise removed after use");
+   // Mark multiple instances and multiple stacks; consuming one does not consume another.
+   reprise=(await PowerCmd.Apply<ArabellaCoiledBladeRecoveryPower>(new(),p.Creature,3,p.Creature,null))!;
+   reprise.Prepare(selected);reprise.Prepare(selected);reprise.Prepare(sameType);
+   Equal(3,reprise.ModifyCardPlayCount(selected,null,1),"multiple preparations stack"); await reprise.AfterModifyingCardPlayCount(selected);
+   Equal(1,reprise.Amount,"unrelated prepared attack retained");Equal(2,reprise.ModifyCardPlayCount(sameType,null,1),"second instance remains marked");
+   p=new Player(); coiled.Owner=p; await coiled.Play(new()); Equal(0,p.Creature.Powers.Count,"empty discard creates no phantom preparation");
+  }
+  foreach(var locale in new[]{"zhs","eng"}) {
+   using var cards=JsonDocument.Parse(File.ReadAllText(Path.Combine(args[0],"ArabellaMod/localization",locale,"cards.json")));
+   var root=cards.RootElement;
+   var chain=root.GetProperty("ARABELLA_MOD_CARD_ARABELLA_SERPENT_KISS_CHAIN.description").GetString()!;
+   Check(chain.Contains("{Cards:diff()}")&&!chain.Contains("PerDerived"),"chain updated localization");
+   var warmth=root.GetProperty("ARABELLA_MOD_CARD_ARABELLA_LINGERING_WARMTH.description").GetString()!;
+   Check(!warmth.Contains("PerCard"),"warmth has no obsolete scaling");
+   using var powers=JsonDocument.Parse(File.ReadAllText(Path.Combine(args[0],"ArabellaMod/localization",locale,"powers.json")));
+   Check(powers.RootElement.GetProperty("ARABELLA_MOD_POWER_ARABELLA_COILED_BLADE_RECOVERY_POWER.description").GetString()!.Length>0,"new power localized");
+  }
+  Console.WriteLine($"PASS: {checks} checks against six production card bodies and both production power classes. Command adapters isolate combat logic; this is not an in-game smoke test.");
+ }
+}

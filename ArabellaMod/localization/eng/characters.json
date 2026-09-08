@@ -1,0 +1,21 @@
+{
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.aromaPrinciple": "[sine][blue]A clean template is ready for a new run.[/blue][/sine]",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.banter.alive.endTurnPing": "Turn complete.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.banter.dead.endTurnPing": "I am out for now.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.cardsModifierDescription": "Template Character cards can now appear in rewards and shops.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.cardsModifierTitle": "Template Cards",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.defeatMessage": "The template still needs a little tuning.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.description": "A sample character used to verify the RitsuLib template project.\nReplace this text with your own character concept after copying the template.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.eventDeathPrevention": "Template Character keeps going.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.flavor": "A clean template waiting to become a new adventure.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.goldMonologue": "This gold is enough to start testing.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.possessiveAdjective": "their",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.pronounObject": "them",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.pronounPossessive": "theirs",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.pronounSubject": "they",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.selectMessage": "Template Character is ready.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.title": "Template Character",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.titleObject": "Template Character",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.unlockText": "Complete a run as [pink]{Prerequisite}[/pink] to unlock this character.",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.victoryMessage": "Template verification complete."
+}

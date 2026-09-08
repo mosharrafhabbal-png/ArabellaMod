@@ -1,0 +1,10 @@
+{
+  "ARABELLA_MOD_KEYWORD_CONTROL.title": "掌控",
+  "ARABELLA_MOD_KEYWORD_CONTROL.description": "掌控X：此牌在消耗牌堆期间独立累计你打出其他卡牌所花费的能量与欲火；达到X点时移入手牌，并在本回合中费用降低1点，最低0点。打出此牌自身所花费的资源不计入进度；此牌每次重新进入消耗牌堆时，进度从0开始。",
+  "ARABELLA_MOD_KEYWORD_INDULGENCE.title": "放纵",
+  "ARABELLA_MOD_KEYWORD_INDULGENCE.description": "此牌被消耗后，触发其额外的放纵效果。",
+  "ARABELLA_MOD_KEYWORD_SENSING.title": "感应",
+  "ARABELLA_MOD_KEYWORD_SENSING.description": "此牌通过任意方式进入手牌时，触发其感应效果，包括战斗开始时的初始抽牌。",
+  "ARABELLA_MOD_KEYWORD_RESTLESS.title": "躁动",
+  "ARABELLA_MOD_KEYWORD_RESTLESS.description": "兴奋达到3点时进入躁动。处于躁动时，每次触发感应，获得2点格挡；兴奋低于3点时离开躁动。"
+}

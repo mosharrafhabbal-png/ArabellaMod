@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ArabellaMod/scripts/ArabellaLoopingFrameAnimation.gd" id="1_loop"]
+
+[node name="ArabellaModCharacterMerchant" type="Node2D"]
+
+[node name="Visuals" type="Sprite2D" parent="."]
+position = Vector2(-70, -150)
+script = ExtResource("1_loop")
+animation_folder = "res://ArabellaMod/images/characters/donghua/xiaorendonghua/shangdian/30115_260826095544_c296d2_30"
+frame_count = 81

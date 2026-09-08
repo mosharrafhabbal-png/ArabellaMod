@@ -1,0 +1,21 @@
+{
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.aromaPrinciple": "[sine][blue]新的旅程，从一份干净模板开始。[/blue][/sine]",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.banter.alive.endTurnPing": "回合结束。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.banter.dead.endTurnPing": "我先撤退。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.cardsModifierDescription": "模板角色的卡牌现在会出现在奖励和商店中。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.cardsModifierTitle": "模板卡牌",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.defeatMessage": "模板还需要继续调整。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.description": "[font_size=24]将周遭卷入毁灭的危险蛇蝎美人。\n恶名昭彰的佣兵团「黑角宿一」的团长。艾拉贝拉凭借妖艳的外貌与巧妙的口才魅惑他人，并将其当成玩具般戏弄。[/font_size]",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.eventDeathPrevention": "模板角色继续坚持。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.flavor": "一份干净的模板，等待被改造成新的冒险。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.goldMonologue": "这些金币足够开始测试。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.possessiveAdjective": "他的",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.pronounObject": "他",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.pronounPossessive": "他的",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.pronounSubject": "他",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.selectMessage": "艾拉贝拉准备就绪。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.title": "艾拉贝拉",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.titleObject": "艾拉贝拉",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.unlockText": "用[pink]{Prerequisite}[/pink]进行一局游戏来解锁这个角色。",
+  "ARABELLA_MOD_CHARACTER_ARABELLA_MOD_CHARACTER.victoryMessage": "模板验证完成。"
+}

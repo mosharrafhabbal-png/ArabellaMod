@@ -1,0 +1,6 @@
+{
+  "ARABELLA_MOD_SECONDARY_RESOURCE_LUST.title": "欲火",
+  "ARABELLA_MOD_SECONDARY_RESOURCE_LUST.description": "每当卡牌从消耗牌堆中移出时获得1点，初始上限9点。每场战斗一次，拥有欲火时受到致命伤害，扣除所有欲火并避免死亡，每实际扣除1点恢复3点生命。每次救命后，本局游戏的欲火上限永久降低1点，最低0点；跨战斗和读档保留，新开一局恢复9点。",
+  "ARABELLA_MOD_SECONDARY_RESOURCE_EXCITEMENT.title": "兴奋",
+  "ARABELLA_MOD_SECONDARY_RESOURCE_EXCITEMENT.description": "最多10点。每实际消耗1点欲火，获得1点兴奋；每次放纵触发，获得1点兴奋；每次受到未被格挡的伤害后失去2点。3点躁动：感应触发时获得2点格挡。6点沉迷：每次因掌控回到手牌，该牌费用额外降低1点，最低0点；此减费可跨回合叠加，兴奋低于6点时立即清除全部沉迷减费，重新达到6点后从零开始累计。10点亢奋：进入时抽2张牌；打牌时每缺少1点能量，可以额外支付1点欲火代替。"
+}

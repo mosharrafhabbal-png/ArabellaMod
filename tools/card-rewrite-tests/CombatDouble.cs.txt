@@ -1,0 +1,167 @@
+// Isolated command adapter. Card bodies and the new powers are compiled from production.
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.ValueProps;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.HoverTips;
+
+namespace MegaCrit.Sts2.Core.Combat { public enum CombatSide { Player, Enemy } }
+namespace MegaCrit.Sts2.Core.Entities.Cards {
+ public enum CardType { Attack, Skill, Power, Status }
+ public enum CardRarity { Common, Uncommon, Rare }
+ public enum CardKeyword { Exhaust, Control, Indulgence }
+ public enum TargetType { AnyEnemy, Self }
+ public enum PileType { Draw, Hand, Discard, Exhaust }
+ public enum CardPilePosition { Top, Bottom, Random }
+ public enum CostModifiers { Local }
+ public sealed class CardPlay { public Creature? Target; public CardModel Card = null!; }
+ public sealed class CardPile(PileType type) { public PileType Type = type; public List<CardModel> Cards = []; }
+ public static class PileExtensions { public static CardPile GetPile(this PileType type, Player player) => player.Piles[type]; }
+}
+namespace MegaCrit.Sts2.Core.Entities.Players {
+ public sealed class Player {
+  public Creature Creature; public Player() { Creature = new Creature { Player = this, Side = CombatSide.Player }; }
+  public Dictionary<PileType, CardPile> Piles = Enum.GetValues<PileType>().ToDictionary(t => t, t => new CardPile(t));
+  public RunState RunState = new(); public CombatState Combat = new(); public int Lust; public int Exhausted;
+ }
+ public sealed class RunState { public Rng Rng = new(); }
+ public sealed class Rng { public Random CombatCardSelection = new(765); }
+ public sealed class CombatState { public List<Creature> Enemies = []; }
+}
+namespace MegaCrit.Sts2.Core.Entities.Creatures {
+ public sealed class Creature {
+  public Player? Player; public CombatSide Side = CombatSide.Enemy; public int Hp = 200; public decimal Block;
+  public bool IsAlive => Hp > 0; public Dictionary<Type, PowerModel> Powers = [];
+  public T? GetPower<T>() where T: PowerModel => Powers.GetValueOrDefault(typeof(T)) as T;
+ }
+ public sealed class DamageResult { }
+}
+namespace MegaCrit.Sts2.Core.ValueProps {
+ [Flags] public enum ValueProp { Move = 1, Unpowered = 2 }
+ public static class Props { public static bool IsPoweredAttack(this ValueProp p) => p == ValueProp.Move; }
+}
+namespace MegaCrit.Sts2.Core.GameActions.Multiplayer {
+ public class PlayerChoiceContext { public Queue<CardModel[]> Choices = []; }
+ public class ThrowingPlayerChoiceContext : PlayerChoiceContext { }
+}
+namespace MegaCrit.Sts2.Core.HoverTips {
+ public interface IHoverTip { } public sealed class Tip : IHoverTip { }
+ public static class HoverTipFactory { public static IHoverTip FromCard<T>() => new Tip(); public static IHoverTip FromPower<T>() => new Tip(); }
+}
+namespace MegaCrit.Sts2.Core.Localization.DynamicVars {
+ public class DynamicVar(string name, decimal value) {
+  public string Name = name; public decimal BaseValue = value; public int IntValue => (int)BaseValue;
+  public void UpgradeValueBy(decimal n) => BaseValue += n;
+ }
+ public class DamageVar : DynamicVar { public DamageVar(decimal n, ValueProp p) : base("Damage", n) { } public DamageVar(string name, decimal n, ValueProp p) : base(name,n) { } }
+ public class BlockVar(decimal n, ValueProp p) : DynamicVar("Block",n) { public ValueProp Props = p; }
+ public class CardsVar(int n) : DynamicVar("Cards", n) { }
+ public class PowerVar<T>(decimal n) : DynamicVar(typeof(T).Name, n) { }
+ public class Vars(IEnumerable<DynamicVar> values) : Dictionary<string, DynamicVar>(values.ToDictionary(v => v.Name)) {
+  public DamageVar Damage => (DamageVar)this["Damage"]; public BlockVar Block => (BlockVar)this["Block"]; public CardsVar Cards => (CardsVar)this["Cards"];
+ }
+}
+namespace MegaCrit.Sts2.Core.Models {
+ public class CardModel {
+  public Player Owner = new(); public CardType Type; public CardPile? Pile; public bool IsUpgraded;
+  public EnergyCost EnergyCost = new(); public CombatState CombatState => Owner.Combat;
+ }
+ public class EnergyCost { public bool CostsX; public int Value; public int GetWithModifiers(CostModifiers _) => Value;
+  public void AddThisTurnOrUntilPlayed(int delta, bool reduceOnly) => Value = Math.Max(0,Value+delta);
+ }
+ public class PowerModel {
+  public Creature Owner = null!; public int Amount; private object? data;
+  protected virtual object InitInternalData() => new(); protected T GetInternalData<T>() => (T)(data ??= InitInternalData()); protected void Flash() { }
+  public virtual int ModifyCardPlayCount(CardModel c, Creature? t, int count) => count;
+  public virtual Task AfterModifyingCardPlayCount(CardModel c) => Task.CompletedTask;
+  public virtual Task AfterDamageReceived(PlayerChoiceContext c, Creature t, DamageResult r, ValueProp p, Creature? d, CardModel? s) => Task.CompletedTask;
+  public virtual Task AfterSideTurnEnd(PlayerChoiceContext c, CombatSide s, IEnumerable<Creature> p) => Task.CompletedTask;
+ }
+}
+namespace MegaCrit.Sts2.Core.Models.Powers { public sealed class DrawCardsNextTurnPower : PowerModel { } }
+namespace STS2RitsuLib.Interop.AutoRegistration { public sealed class RegisterPowerAttribute : Attribute { } }
+namespace STS2RitsuLib.Combat.SecondaryResources {
+ public sealed class Costs { public int Lust; public void Set(string id, int n) => Lust = n; }
+ public static class CostExtension { private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CardModel,Costs> Values = new(); public static Costs SecondaryCosts(this CardModel c) => Values.GetOrCreateValue(c); }
+ public static class SecondaryResourceCmd { public static Task Gain(Player p, string id, int n, CardModel c) { p.Lust += n; return Task.CompletedTask; } }
+}
+namespace ArabellaMod.Characters { public class ArabellaModCardPool { } }
+namespace ArabellaMod.Mechanics {
+ public static class ArabellaResources { public const string LustId = "lust"; }
+ public static class ArabellaKeywords { public const CardKeyword Control = CardKeyword.Control, Indulgence = CardKeyword.Indulgence; }
+ public interface IControlCard { int ControlThreshold { get; } }
+ public interface IIndulgenceCard { Task OnIndulgence(PlayerChoiceContext c, bool ethereal); }
+}
+namespace ArabellaMod.Powers {
+ public abstract class ArabellaRewardPower : PowerModel { protected abstract string FileName { get; } }
+ public sealed class ArabellaLacerationPower : PowerModel { }
+}
+namespace ArabellaMod.Cards {
+ public interface IArabellaDerivedCard { } public interface IArabellaSensingDerivedCard : IArabellaDerivedCard { }
+ public class ArabellaSlitheringSerpent : CardModel, IArabellaSensingDerivedCard { }
+ public abstract class ArabellaRewardCard : CardModel {
+  protected ArabellaRewardCard(int cost, CardType type, CardRarity rarity, TargetType target) { EnergyCost.Value = cost; Type = type; }
+  protected virtual IEnumerable<DynamicVar> CanonicalVars => []; private Vars? vars; public Vars DynamicVars => vars ??= new(CanonicalVars);
+  public virtual bool GainsBlock => false; public virtual IEnumerable<CardKeyword> CanonicalKeywords => [];
+  protected virtual IEnumerable<IHoverTip> AdditionalHoverTips => []; protected string SelectionScreenPrompt => "select";
+  protected abstract Task OnPlay(PlayerChoiceContext c, CardPlay p); protected virtual void OnUpgrade() { }
+  public Task Play(PlayerChoiceContext c, Creature? target = null) => OnPlay(c,new CardPlay { Card=this, Target=target });
+  public void Upgrade() { IsUpgraded = true; OnUpgrade(); }
+ }
+ public static class ArabellaCardLogic { public static int ExhaustedCardCount(CardModel c, bool thisTurn) => c.Owner.Exhausted; }
+}
+namespace MegaCrit.Sts2.Core.Extensions {
+ public static class Shuffle { public static IEnumerable<T> StableShuffle<T>(this List<T> list, Random rng) { var arr = list.ToArray(); rng.Shuffle(arr); return arr; } }
+}
+namespace MegaCrit.Sts2.Core.CardSelection {
+ public sealed class CardSelectorPrefs { public static string ExhaustSelectionPrompt => "exhaust"; public int Min, Max; public CardSelectorPrefs(string text, int n) { Min=Max=n; } public CardSelectorPrefs(string text, int min, int max) { Min=min; Max=max; } }
+}
+namespace MegaCrit.Sts2.Core.Commands {
+ using MegaCrit.Sts2.Core.CardSelection;
+ public static class CardPileCmd {
+  public static Task Add(CardModel c, PileType t, CardPilePosition pos = CardPilePosition.Bottom) {
+   c.Pile?.Cards.Remove(c); var pile = t.GetPile(c.Owner); c.Pile=pile;
+   if(pos==CardPilePosition.Top) pile.Cards.Insert(0,c); else if(pos==CardPilePosition.Random) pile.Cards.Insert(c.Owner.RunState.Rng.CombatCardSelection.Next(pile.Cards.Count+1),c); else pile.Cards.Add(c);
+   return Task.CompletedTask;
+  }
+  public static async Task Add(IEnumerable<CardModel> cards, PileType t, CardPilePosition pos) { foreach(var c in cards.ToArray()) await Add(c,t,pos); }
+  public static async Task Draw(PlayerChoiceContext ctx, int n, Player player) { for(int i=0;i<n && PileType.Draw.GetPile(player).Cards.Count>0;i++) await Add(PileType.Draw.GetPile(player).Cards[0],PileType.Hand); }
+ }
+ public static class CardCmd { public static async Task Exhaust(PlayerChoiceContext c, CardModel card) { card.Owner.Exhausted++; await CardPileCmd.Add(card,PileType.Exhaust); } }
+ public static class CardSelectCmd {
+  public static readonly List<CardModel[]> Offered = [];
+  private static Task<IEnumerable<CardModel>> Select(PlayerChoiceContext ctx, IEnumerable<CardModel> source, CardSelectorPrefs prefs, Func<CardModel,bool>? filter) {
+   var eligible=source.Where(c => filter?.Invoke(c) ?? true).ToArray(); Offered.Add(eligible);
+   var choice = ctx.Choices.Count>0 ? ctx.Choices.Dequeue() : eligible.Take(prefs.Min).ToArray();
+   if(choice.Any(c => !eligible.Contains(c)) || choice.Length>prefs.Max) throw new Exception("Ineligible selection");
+   return Task.FromResult<IEnumerable<CardModel>>(choice);
+  }
+  public static Task<IEnumerable<CardModel>> FromHand(PlayerChoiceContext ctx, Player player, CardSelectorPrefs prefs, Func<CardModel,bool>? filter, CardModel source) => Select(ctx,PileType.Hand.GetPile(player).Cards.Where(c=>c!=source),prefs,filter);
+  public static Task<IEnumerable<CardModel>> FromCombatPile(PlayerChoiceContext ctx, CardPile pile, Player player, CardSelectorPrefs prefs, Func<CardModel,bool>? filter=null) => Select(ctx,pile.Cards,prefs,filter);
+  public static Task<IEnumerable<CardModel>> FromSimpleGrid(PlayerChoiceContext ctx, IEnumerable<CardModel> cards, Player player, CardSelectorPrefs prefs) => Select(ctx,cards,prefs,null);
+ }
+ public static class CreatureCmd {
+  public static Task GainBlock(Creature owner, BlockVar v, CardPlay? cp) => GainBlock(owner,v.BaseValue,v.Props,cp);
+  public static Task GainBlock(Creature owner, decimal n, ValueProp props, CardPlay? cardPlay) { owner.Block+=n; return Task.CompletedTask; }
+ }
+ public static class PowerCmd {
+  public static Task<T?> Apply<T>(PlayerChoiceContext ctx, Creature owner, decimal n, Creature applier, CardModel? source) where T:PowerModel,new() {
+   if(!owner.Powers.TryGetValue(typeof(T),out var p)) owner.Powers[typeof(T)]=p=new T{Owner=owner}; p.Amount+=(int)n; return Task.FromResult((T?)p);
+  }
+  public static Task Remove(PowerModel p) { p.Owner.Powers.Remove(p.GetType()); return Task.CompletedTask; }
+  public static async Task ModifyAmount(PlayerChoiceContext c, PowerModel p, decimal n, Creature? a, CardModel? s) { p.Amount+=(int)n; if(p.Amount<=0) await Remove(p); }
+ }
+ public static class DamageCmd { public static AttackBuilder Attack(decimal n) => new(n); }
+ public sealed class AttackBuilder(decimal damage) {
+  private int hits=1; private Creature[] targets=[];
+  public AttackBuilder WithHitCount(int n) { hits=n; return this; }
+  public AttackBuilder FromCard(CardModel card, CardPlay? play) => this;
+  public AttackBuilder Targeting(Creature c) { targets=[c]; return this; }
+  public AttackBuilder TargetingAllOpponents(CombatState s) { targets=s.Enemies.ToArray(); return this; }
+  public Task Execute(PlayerChoiceContext ctx) { foreach(var t in targets) for(int i=0;i<hits && t.IsAlive;i++) { t.Hp-=(int)damage; if(!t.IsAlive) t.Powers.Clear(); } return Task.CompletedTask; }
+ }
+}

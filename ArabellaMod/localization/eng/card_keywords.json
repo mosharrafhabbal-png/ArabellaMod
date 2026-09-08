@@ -1,0 +1,10 @@
+{
+  "ARABELLA_MOD_KEYWORD_CONTROL.title": "Control",
+  "ARABELLA_MOD_KEYWORD_CONTROL.description": "Control X: While this card is in the Exhaust Pile, it independently tracks Energy and Lust spent to play other cards. Its own play cost does not count. At X, move it into your Hand and reduce its cost by 1 this turn, to a minimum of 0. Its progress restarts at 0 each time it enters the Exhaust Pile.",
+  "ARABELLA_MOD_KEYWORD_INDULGENCE.title": "Indulgence",
+  "ARABELLA_MOD_KEYWORD_INDULGENCE.description": "After this card is Exhausted, trigger its additional Indulgence effect.",
+  "ARABELLA_MOD_KEYWORD_SENSING.title": "Sensing",
+  "ARABELLA_MOD_KEYWORD_SENSING.description": "Trigger this card's Sensing effect whenever it enters your Hand by any means, including the opening hand draw.",
+  "ARABELLA_MOD_KEYWORD_RESTLESS.title": "Restless",
+  "ARABELLA_MOD_KEYWORD_RESTLESS.description": "Enter Restless at 3 Excitement. While Restless, gain 2 Block whenever Sensing triggers. Leave Restless when Excitement falls below 3."
+}

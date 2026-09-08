@@ -1,0 +1,6 @@
+{
+  "ARABELLA_MOD_SECONDARY_RESOURCE_LUST.title": "Lust",
+  "ARABELLA_MOD_SECONDARY_RESOURCE_LUST.description": "Gain 1 Lust whenever a card leaves the Exhaust Pile. Starts with a maximum of 9. Once per combat, if you have Lust when taking lethal damage, prevent death, remove all Lust, and restore 3 HP per Lust actually removed. Each rescue permanently reduces your maximum Lust by 1 for this run, to a minimum of 0. This persists across combats and saves; a new run starts at 9.",
+  "ARABELLA_MOD_SECONDARY_RESOURCE_EXCITEMENT.title": "Excitement",
+  "ARABELLA_MOD_SECONDARY_RESOURCE_EXCITEMENT.description": "Up to 10. Gain 1 Excitement whenever you actually spend 1 Lust and whenever Indulgence triggers; lose 2 each time you take unblocked damage. At 3, Restless makes Sensing grant 2 Block. At 6, each return to your Hand through Control reduces that card's cost by an additional 1, to a minimum of 0. These Indulged reductions stack across turns and are all immediately cleared when Excitement falls below 6; reaching 6 again starts from zero. At 10, entering Excited draws 2 cards; whenever you play a card, each missing Energy can be replaced by paying 1 additional Lust."
+}
